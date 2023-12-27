@@ -1,12 +1,13 @@
 import time
 
-from train import Train
+from train import Model
 
 if __name__ == "__main__":
-    train = Train()
+    model = Model()
 
     start_time = time.time()
-    train.train()
+    model.train()
     end_time = time.time()
 
     print("Training time: ", end_time - start_time)
+    model.bleu()

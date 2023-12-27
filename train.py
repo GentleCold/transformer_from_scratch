@@ -1,9 +1,10 @@
 import numpy as np
 from torch import optim
 from torch.nn.utils.clip_grad import clip_grad_norm_
+from torchtext.data.metrics import bleu_score
 from tqdm import tqdm
 
-from data.data_handler import DEVICE, PAD_TOKEN, DataHandler
+from data.data_handler import DEVICE, EOS_TOKEN, PAD_TOKEN, SOS_TOKEN, DataHandler
 from model.lstm import *
 
 
@@ -14,7 +15,7 @@ def set_seed(seed):
     torch.cuda.manual_seed_all(seed)
 
 
-class Train:
+class Model:
     def __init__(
         self,
         learning_rate=0.001,
@@ -24,7 +25,7 @@ class Train:
         dec_emb_dim=128,
         hidden_dim=256,
         dropout=0.5,
-        n_layers=1,
+        n_layers=2,
     ):
         set_seed(42)
         self.epochs = epochs
@@ -133,3 +134,43 @@ class Train:
             print(f"Val set: \nLoss: {epoch_loss}\n")
         else:
             print(f"Test set: \nLoss: {epoch_loss}\n")
+
+    def _inference(self, sentence, max_len):
+        self.model.eval()
+
+        source_index = self.data_handler.source_voc.sentence2index(sentence)
+        source_index.insert(0, SOS_TOKEN)
+        source_index.append(EOS_TOKEN)
+        source_tensor = torch.LongTensor(source_index).unsqueeze(1).to(DEVICE)
+        predicts = [SOS_TOKEN]
+
+        with torch.no_grad():
+            hidden, cell = self.model.encoder(source_tensor)
+
+            # first input to the decoder is the <sos> tokens
+            input = source_tensor[0, :]
+
+            for _ in range(1, max_len):
+                with torch.no_grad():
+                    output, hidden, cell = self.model.decoder(input, hidden, cell)
+
+                top1 = output.argmax(1)
+                input = top1
+                predict = input.item()
+                predicts.append(input.item())
+                if predict == EOS_TOKEN:
+                    break
+        predicts = [self.data_handler.target_voc.index2word[idx] for idx in predicts]
+        return predicts[1:]
+
+    def bleu(self):
+        targets = []
+        predicts = []
+        for _, sample in tqdm(self.data_handler.test_dataset.iterrows()):
+            targets.append(sample["diagnosis"].split(" "))
+            predict = self._inference(
+                sample["description"], max_len=len(sample["diagnosis"].split(" "))
+            )
+            predicts.append(predict[:-1])
+        print(f"BLEU: {bleu_score(predicts, targets)}")
+        print(targets, predicts)

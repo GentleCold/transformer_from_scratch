@@ -135,12 +135,15 @@ class DataHandler:
         """
         max_source_len = max(len(sample[0]) for sample in batch)
         max_target_len = max(len(sample[1]) for sample in batch)
-        max_len = max(max_source_len, max_target_len)
 
         padded_batch = []
         for source_idx, target_idx in batch:
-            padded_source_idx = source_idx + [PAD_TOKEN] * (max_len - len(source_idx))
-            padded_target_idx = target_idx + [PAD_TOKEN] * (max_len - len(target_idx))
+            padded_source_idx = source_idx + [PAD_TOKEN] * (
+                max_source_len - len(source_idx)
+            )
+            padded_target_idx = target_idx + [PAD_TOKEN] * (
+                max_target_len - len(target_idx)
+            )
 
             padded_batch.append((padded_source_idx, padded_target_idx))
 
