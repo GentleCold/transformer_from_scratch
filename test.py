@@ -97,9 +97,25 @@ for i, sample in train_dataset.iterrows():
 tensor_train_dataset = TensorDataset(
     torch.LongTensor(input_idx).to(DEVICE), torch.LongTensor(output_idx).to(DEVICE)
 )
+
+
+def collate_fn(batch):
+    # 将样本组合成批次的函数
+    inputs = [item[0] for item in batch]
+    targets = [item[1] for item in batch]
+
+    # 设置batch_first为False，将批次维度放置在第二维度
+    inputs = torch.stack(inputs, dim=1)
+    targets = torch.stack(targets, dim=1)
+
+    return inputs, targets
+
+
+# 创建DataLoader，并设置collate_fn参数为自定义的collate_fn函数
 loader = DataLoader(
     tensor_train_dataset,
     batch_size=BATCH_SIZE,
+    collate_fn=collate_fn,
 )
 
 # Train model

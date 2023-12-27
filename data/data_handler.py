@@ -9,7 +9,6 @@ Reference:
 """
 import pandas as pd
 import torch
-from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader, IterableDataset
 
 PAD_TOKEN = 0
@@ -147,10 +146,12 @@ class DataHandler:
 
         source_tensor = (
             torch.LongTensor([sample[0] for sample in padded_batch])
+            .transpose(0, 1)  # Batch second
             .to(DEVICE)
         )
         target_tensor = (
             torch.LongTensor([sample[1] for sample in padded_batch])
+            .transpose(0, 1)
             .to(DEVICE)
         )
 

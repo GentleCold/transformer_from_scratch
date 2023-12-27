@@ -93,7 +93,7 @@ class Train:
 
             # trim the first token
             output = output[1:].view(-1, output.shape[-1])
-            target = target[1:].view(-1)
+            target = target[1:].reshape(-1)
 
             loss = self.criterion(output, target)
             loss.backward()
@@ -122,7 +122,7 @@ class Train:
 
                 # trim the first token
                 output = output[1:].view(-1, output.shape[-1])
-                target = target[1:].view(-1)
+                target = target[1:].reshape(-1)
 
                 loss = self.criterion(output, target)
 
