@@ -10,4 +10,4 @@ if __name__ == "__main__":
     end_time = time.time()
 
     print("Training time: ", end_time - start_time)
-    model.bleu()
+    model.metric(0)

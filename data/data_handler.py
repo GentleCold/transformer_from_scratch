@@ -147,15 +147,11 @@ class DataHandler:
 
             padded_batch.append((padded_source_idx, padded_target_idx))
 
-        source_tensor = (
-            torch.LongTensor([sample[0] for sample in padded_batch])
-            .transpose(0, 1)  # Batch second
-            .to(DEVICE)
+        source_tensor = torch.LongTensor([sample[0] for sample in padded_batch]).to(
+            DEVICE
         )
-        target_tensor = (
-            torch.LongTensor([sample[1] for sample in padded_batch])
-            .transpose(0, 1)
-            .to(DEVICE)
+        target_tensor = torch.LongTensor([sample[1] for sample in padded_batch]).to(
+            DEVICE
         )
 
         return source_tensor, target_tensor
