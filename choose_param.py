@@ -35,7 +35,7 @@ results = []
 for params in tqdm(all_params):
     model = Model(**params)
     valid_loss, train_epoch = model.train(verbose=False)
-    bleu, meteor, rouge_l, rouge_1, rouge_2 = model.metric(0)
+    bleu, meteor, rouge_l, rouge_1, rouge_2 = model.metric(0, verbose=False)
     metrics = {
         "valid_loss": valid_loss,
         "bleu": bleu,

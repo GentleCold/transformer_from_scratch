@@ -1,7 +1,9 @@
 import math
 import random
 
+import nltk
 import numpy as np
+import pandas as pd
 import torch
 from matplotlib import pyplot as plt
 from nltk.translate.meteor_score import meteor_score
@@ -15,6 +17,12 @@ from data.data_handler import DEVICE, EOS_TOKEN, PAD_TOKEN, SOS_TOKEN, DataHandl
 
 # from model.lstm import *
 from model.transformer import *
+
+download_path = "./output/nltk_data"
+model_save_path = "./output/model.pt"
+result_save_path = "./output/result.csv"
+nltk.download("wordnet", download_dir=download_path)
+nltk.data.path.append(download_path)
 
 
 def set_seed(seed):
@@ -32,7 +40,7 @@ class Model:
         batch_size=128,
         hidden_dim=128,
         ff_dim=512,
-        n_layers=2,
+        n_layers=4,
         heads=8,
         dropout=0.2,
         optimizer="adam",
@@ -95,12 +103,12 @@ class Model:
         self.train_loss = []
         self.val_loss = []
 
-        print("===== Traning Info =====")
-        print("Device:", DEVICE)
         if verbose:
+            print("===== Traning Info =====")
+            print("Device:", DEVICE)
             print("Batch size:", self.batch_size)
             print(f"Model Info:\n")
-            print(self.model)
+            # print(self.model)
 
             def count_parameters(model):
                 return sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -108,7 +116,7 @@ class Model:
             print(
                 f"The model has {count_parameters(self.model):,} trainable parameters"
             )
-        print("\n==== Starting Train ====")
+            print("\n==== Starting Train ====")
 
         best_valid_loss = float("inf")
         early_stop_patience = 3
@@ -120,17 +128,19 @@ class Model:
             valid_loss = self._evaluate(self.val_loader, verbose)
             if valid_loss < best_valid_loss:
                 best_valid_loss = valid_loss
-                torch.save(self.model.state_dict(), "output/model.pt")
+                torch.save(self.model.state_dict(), model_save_path)
                 early_stop_count = 0
             else:
                 early_stop_count += 1
                 if early_stop_count == early_stop_patience:
-                    print("Early stop...")
+                    if verbose:
+                        print("Early stop...")
                     break
 
-        print(f"The training epoch is {epoch}")
-        print(f"Choose model with best valid loss: {best_valid_loss}")
-        self.model.load_state_dict(torch.load("model.pt"))
+        if verbose:
+            print(f"The training epoch is {epoch}")
+            print(f"Choose model with best valid loss: {best_valid_loss}")
+        self.model.load_state_dict(torch.load(model_save_path))
         self._evaluate(self.test_loader, True)
 
         def moving_average(data, window_size):
@@ -146,7 +156,7 @@ class Model:
     def _epoch_train(self, epoch, verbose):
         self.model.train()
         epoch_loss = 0
-        for source, target in tqdm(self.train_loader):
+        for source, target in tqdm(self.train_loader, disable=not verbose):
             self.optimizer.zero_grad()
             # trim the last token
             output, _ = self.model(source, target[:, :-1])
@@ -193,11 +203,11 @@ class Model:
                 epoch_loss += loss.item()
 
         epoch_loss /= len(dataset)
-        if dataset == self.val_loader:
-            if verbose:
+        if verbose:
+            if dataset == self.val_loader:
                 print(f"Val set: \nLoss: {epoch_loss} PPL: {math.exp(epoch_loss)}\n")
-        else:
-            print(f"Test set: \nLoss: {epoch_loss} PPL: {math.exp(epoch_loss)}\n")
+            else:
+                print(f"Test set: \nLoss: {epoch_loss} PPL: {math.exp(epoch_loss)}\n")
         return epoch_loss
 
     def _inference(self, sentence, max_len):
@@ -231,7 +241,7 @@ class Model:
         predicts = [self.data_handler.target_voc.index2word[idx] for idx in predicts]
         return predicts
 
-    def metric(self, head):
+    def metric(self, head, verbose=False):
         print("\n==== Calculating metrics ====")
         reference = []
         candidate = []
@@ -243,7 +253,7 @@ class Model:
         rouge_2_f = 0
         meteor = 0
 
-        for i in tqdm(range(len(sources))):
+        for i in tqdm(range(len(sources)), disable=not verbose):
             reference.append([targets[i].split(" ")])
             predict = self._inference(
                 sources[i], max_len=len(targets[i].split(" ")) + 10
@@ -266,11 +276,12 @@ class Model:
         rouge_1_f /= len(sources)
         rouge_2_f /= len(sources)
 
-        print(f"BLEU: {bleu}")
-        print(f"Meteor: {meteor}")
-        print(f"ROUGE-L f1: {rouge_l_f}")
-        print(f"ROUGE-1 f1: {rouge_1_f}")
-        print(f"ROUGE-2 f1: {rouge_2_f}")
+        if verbose:
+            print(f"BLEU: {bleu}")
+            print(f"Meteor: {meteor}")
+            print(f"ROUGE-L f1: {rouge_l_f}")
+            print(f"ROUGE-1 f1: {rouge_1_f}")
+            print(f"ROUGE-2 f1: {rouge_2_f}")
         return bleu, meteor, rouge_l_f, rouge_1_f, rouge_2_f
 
     def draw_loss(self):
@@ -279,3 +290,17 @@ class Model:
         plt.title("Loss")
         plt.legend()
         plt.show()
+
+    def save_result(self):
+        results = pd.DataFrame(columns=["diagnosis"])
+        sources = self.data_handler.test_dataset["description"].tolist()
+        targets = self.data_handler.test_dataset["diagnosis"].tolist()
+
+        for i in tqdm(range(len(sources))):
+            predict = self._inference(
+                sources[i], max_len=len(targets[i].split(" ")) + 10
+            )
+            # row = {"diagnosis": " ".join(predict[1:-1])}
+            results.loc[results.index.size] = " ".join(predict[1:-1])
+
+        results.to_csv(result_save_path)
